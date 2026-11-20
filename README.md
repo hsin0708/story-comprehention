@@ -1,1 +1,1337 @@
-# story-comprehention
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>聽覺記憶拼圖大作戰｜語言治療互動遊戲</title>
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 Google Fonts 圓體字型，增加童趣與易讀性 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    /* 動畫特效定義 */
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    .animate-float {
+      animation: floatSlow 3s ease-in-out infinite;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.5); opacity: 0; }
+      75% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes shakeGentle {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+    .animate-shake {
+      animation: shakeGentle 0.4s ease-in-out;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); transform: scale(1); }
+      50% { box-shadow: 0 0 24px 8px rgba(250, 204, 21, 0.9); transform: scale(1.06); }
+    }
+    .anchor-active {
+      animation: pulseGlow 1.5s infinite;
+      border-color: #facc15 !important;
+      background-color: #fef08a !important;
+      color: #854d0e !important;
+    }
+
+    /* 光線發射與道具啟動動畫 */
+    @keyframes beamShoot {
+      0% { transform: scaleX(0); opacity: 0.2; }
+      50% { transform: scaleX(1.1); opacity: 1; }
+      100% { transform: scaleX(1); opacity: 0.95; }
+    }
+    .animate-beam {
+      transform-origin: left center;
+      animation: beamShoot 0.6s ease-out forwards;
+    }
+
+    /* 彩帶飄落效果 */
+    .confetti-piece {
+      position: fixed;
+      width: 12px;
+      height: 12px;
+      top: -20px;
+      z-index: 60;
+      pointer-events: none;
+      border-radius: 3px;
+      animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+      to {
+        transform: translateY(105vh) rotate(720deg);
+      }
+    }
+
+    /* 拼圖格遮罩過渡 */
+    .puzzle-cover {
+      transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .puzzle-unlocked {
+      opacity: 0;
+      transform: scale(1.3) rotate(12deg);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- =========================================================
+       頂部：治療師專屬控制列（低調可收合，不干擾孩童視覺）
+       ========================================================= -->
+  <header class="bg-slate-800 text-white px-3 py-2 shadow-md z-40">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- 左側：標題與回首頁 -->
+      <div class="flex items-center gap-2">
+        <button id="btn-home" onclick="goHome()" class="bg-slate-700 hover:bg-slate-600 active:scale-95 px-3 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition">
+          <span>🏠</span>
+          <span class="hidden sm:inline">換主題</span>
+        </button>
+        <span class="text-xs sm:text-sm font-bold text-slate-300 tracking-wide">
+          🩺 治療師控制台
+        </span>
+      </div>
+
+      <!-- 右側：臨床輔助開關群組 -->
+      <div id="therapist-controls" class="flex flex-wrap items-center gap-2">
+        <!-- 1. 故事文本顯示開關（讓治療師決定是否隱藏文字，強迫純聽覺理解） -->
+        <button id="toggle-text-btn" onclick="toggleStoryText()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow">
+          <span id="toggle-text-icon">👁️</span>
+          <span id="toggle-text-label">故事文字：顯示</span>
+        </button>
+
+        <!-- 2. 視覺錨點提示燈開關（誰、哪裡、什麼東西、什麼時候） -->
+        <button id="toggle-anchors-btn" onclick="toggleAnchorsBar()" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow">
+          <span>💡</span>
+          <span id="toggle-anchors-label">視覺提示燈：開啟</span>
+        </button>
+
+        <!-- 3. 音效開關 -->
+        <button id="toggle-sound-btn" onclick="toggleSound()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1 transition">
+          <span id="sound-icon">🔊</span>
+        </button>
+
+        <!-- 4. 自訂故事題庫編輯器 -->
+        <button onclick="openEditorModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow">
+          <span>✏️</span>
+          <span>編輯題庫</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================
+       主畫面容器
+       ========================================================= -->
+  <main class="flex-1 flex flex-col max-w-6xl w-full mx-auto p-3 sm:p-5">
+
+    <!-- 畫面 1：雙主題選擇首頁 -->
+    <section id="screen-home" class="flex-1 flex flex-col justify-center items-center py-4 animate-pop">
+      <div class="text-center mb-6 sm:mb-8">
+        <div class="inline-block bg-white px-4 py-1.5 rounded-full shadow-sm text-sm font-bold text-slate-500 mb-2">
+          🎧 仔細聽故事・收集 4 塊神秘拼圖！
+        </div>
+        <h1 class="text-3xl sm:text-5xl font-black text-slate-800 tracking-tight">
+          聽覺記憶拼圖大作戰
+        </h1>
+      </div>
+
+      <!-- 兩大主題卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+        
+        <!-- 主題 A：哆啦A夢風格 -->
+        <button onclick="startMission('doraemon')" class="group relative bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white rounded-3xl p-6 sm:p-8 shadow-xl border-4 border-white transition-all duration-300 transform hover:-translate-y-1.5 active:scale-95 text-left flex flex-col justify-between overflow-hidden">
+          <!-- 背景裝飾圓圈 -->
+          <div class="absolute -right-8 -bottom-8 w-44 h-44 bg-white/15 rounded-full pointer-events-none"></div>
+          
+          <div class="flex items-center justify-between mb-4">
+            <span class="bg-yellow-400 text-blue-950 font-black px-4 py-1.5 rounded-full text-sm sm:text-base shadow">
+              🔔 任務一
+            </span>
+            <span class="text-4xl sm:text-5xl animate-float">🐱🤖</span>
+          </div>
+
+          <!-- 客製化主題插畫 SVG：百寶袋與竹蜻蜓 -->
+          <div class="my-3 flex justify-center">
+            <svg class="w-36 h-36 sm:w-44 sm:h-44 drop-shadow-lg" viewBox="0 0 200 200">
+              <!-- 藍色圓臉輪廓 -->
+              <circle cx="100" cy="105" r="72" fill="#0ea5e9" stroke="#ffffff" stroke-width="5"/>
+              <circle cx="100" cy="115" r="56" fill="#ffffff"/>
+              <!-- 紅鼻子 -->
+              <circle cx="100" cy="88" r="12" fill="#ef4444"/>
+              <circle cx="96" cy="84" r="4" fill="#ffffff"/>
+              <!-- 微笑嘴巴 -->
+              <path d="M 68 112 Q 100 148 132 112" fill="none" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+              <line x1="100" y1="100" x2="100" y2="128" stroke="#1e293b" stroke-width="4"/>
+              <!-- 紅色項圈與黃金鈴鐺 -->
+              <rect x="52" y="156" width="96" height="14" rx="7" fill="#ef4444"/>
+              <circle cx="100" cy="166" r="15" fill="#facc15" stroke="#b45309" stroke-width="3"/>
+              <line x1="87" y1="163" x2="113" y2="163" stroke="#b45309" stroke-width="3"/>
+              <circle cx="100" cy="170" r="3.5" fill="#78350f"/>
+              <!-- 頭頂竹蜻蜓 -->
+              <rect x="96" y="16" width="8" height="20" rx="3" fill="#facc15"/>
+              <ellipse cx="100" cy="16" rx="42" ry="7" fill="#fde047" stroke="#eab308" stroke-width="2"/>
+            </svg>
+          </div>
+
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black mb-1 drop-shadow">
+              哆啦A夢：神秘道具拼圖
+            </h2>
+            <p class="text-sky-100 font-bold text-base sm:text-lg">
+              聽故事找線索，解鎖超酷未來道具！
+            </p>
+          </div>
+        </button>
+
+        <!-- 主題 B：超人力霸王風格 -->
+        <button onclick="startMission('ultraman')" class="group relative bg-gradient-to-b from-red-500 via-rose-600 to-slate-800 hover:from-red-400 hover:to-slate-700 text-white rounded-3xl p-6 sm:p-8 shadow-xl border-4 border-white transition-all duration-300 transform hover:-translate-y-1.5 active:scale-95 text-left flex flex-col justify-between overflow-hidden">
+          <!-- 背景裝飾光暈 -->
+          <div class="absolute -right-8 -bottom-8 w-44 h-44 bg-cyan-400/20 rounded-full pointer-events-none"></div>
+
+          <div class="flex items-center justify-between mb-4">
+            <span class="bg-cyan-400 text-slate-950 font-black px-4 py-1.5 rounded-full text-sm sm:text-base shadow">
+              ⚡ 任務二
+            </span>
+            <span class="text-4xl sm:text-5xl animate-float">🦸‍♂️🦖</span>
+          </div>
+
+          <!-- 客製化主題插畫 SVG：光之巨人與彩色計時器 -->
+          <div class="my-3 flex justify-center">
+            <svg class="w-36 h-36 sm:w-44 sm:h-44 drop-shadow-lg" viewBox="0 0 200 200">
+              <!-- 銀色頭盔 -->
+              <path d="M 55 110 C 55 55, 145 55, 145 110 C 145 148, 125 168, 100 168 C 75 168, 55 148, 55 110 Z" fill="#e2e8f0" stroke="#ffffff" stroke-width="4"/>
+              <!-- 頭頂銀色頭冠 -->
+              <path d="M 92 38 L 108 38 L 105 88 L 95 88 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+              <!-- 紅色額頭與臉頰花紋 -->
+              <path d="M 65 88 Q 100 72 135 88 L 138 112 Q 100 95 62 112 Z" fill="#ef4444"/>
+              <!-- 發光鹹蛋超人眼睛 -->
+              <ellipse cx="78" cy="108" rx="15" ry="10" transform="rotate(-18 78 108)" fill="#fef08a" stroke="#eab308" stroke-width="2.5"/>
+              <ellipse cx="122" cy="108" rx="15" ry="10" transform="rotate(18 122 108)" fill="#fef08a" stroke="#eab308" stroke-width="2.5"/>
+              <!-- 胸前彩色計時器 (Color Timer) -->
+              <circle cx="100" cy="146" r="14" fill="#38bdf8" stroke="#ffffff" stroke-width="3.5"/>
+              <circle cx="96" cy="142" r="4" fill="#ffffff" opacity="0.8"/>
+            </svg>
+          </div>
+
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black mb-1 drop-shadow">
+              超人力霸王：光之能量任務
+            </h2>
+            <p class="text-rose-100 font-bold text-base sm:text-lg">
+              收集 4 顆光之拼圖，發射彩虹光線！
+            </p>
+          </div>
+        </button>
+
+      </div>
+    </section>
+
+    <!-- =========================================================
+         畫面 2：遊戲闖關主舞台
+         ========================================================= -->
+    <section id="screen-game" class="hidden flex-1 flex flex-col gap-4">
+
+      <!-- 頂部進度條與關卡指示 -->
+      <div id="theme-banner" class="rounded-3xl p-3 sm:p-4 text-white shadow-lg flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span id="mission-badge" class="text-3xl sm:text-4xl bg-white/20 p-2 rounded-2xl">🔔</span>
+          <div>
+            <h2 id="mission-title" class="text-lg sm:text-2xl font-black">任務標題</h2>
+            <p id="stage-subtitle" class="text-xs sm:text-sm font-bold opacity-90">第 1 關 / 共 4 關</p>
+          </div>
+        </div>
+
+        <!-- 4 關進度星星 -->
+        <div class="flex items-center gap-2 bg-black/20 px-4 py-2 rounded-2xl">
+          <span class="text-xs sm:text-sm font-bold mr-1">能量進度：</span>
+          <div id="progress-stars" class="flex gap-1.5 text-2xl">
+            <span>⚪</span><span>⚪</span><span>⚪</span><span>⚪</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 視覺錨點提示燈列（治療師可在講故事時點擊發亮，協助建立聽覺注意力焦點） -->
+      <div id="visual-anchors-bar" class="bg-white rounded-3xl p-3 shadow-md border-2 border-slate-200">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-xs font-bold text-slate-400">👆 聽故事小幫手（點擊圖示可亮燈提醒重點）</span>
+          <button onclick="clearAnchorHighlights()" class="text-xs font-bold text-slate-400 hover:text-slate-600 underline">清除亮燈</button>
+        </div>
+        <div class="grid grid-cols-4 gap-2 sm:gap-4">
+          <button onclick="toggleSingleAnchor(this)" class="anchor-card bg-slate-50 border-2 border-slate-200 rounded-2xl py-2 sm:py-3 px-2 flex flex-col items-center justify-center transition active:scale-95">
+            <span class="text-2xl sm:text-3xl mb-0.5">👤</span>
+            <span class="text-sm sm:text-base font-black text-slate-700">誰</span>
+          </button>
+          <button onclick="toggleSingleAnchor(this)" class="anchor-card bg-slate-50 border-2 border-slate-200 rounded-2xl py-2 sm:py-3 px-2 flex flex-col items-center justify-center transition active:scale-95">
+            <span class="text-2xl sm:text-3xl mb-0.5">🏠</span>
+            <span class="text-sm sm:text-base font-black text-slate-700">哪裡</span>
+          </button>
+          <button onclick="toggleSingleAnchor(this)" class="anchor-card bg-slate-50 border-2 border-slate-200 rounded-2xl py-2 sm:py-3 px-2 flex flex-col items-center justify-center transition active:scale-95">
+            <span class="text-2xl sm:text-3xl mb-0.5">🎒</span>
+            <span class="text-sm sm:text-base font-black text-slate-700">什麼東西</span>
+          </button>
+          <button onclick="toggleSingleAnchor(this)" class="anchor-card bg-slate-50 border-2 border-slate-200 rounded-2xl py-2 sm:py-3 px-2 flex flex-col items-center justify-center transition active:scale-95">
+            <span class="text-2xl sm:text-3xl mb-0.5">⏰</span>
+            <span class="text-sm sm:text-base font-black text-slate-700">什麼時候</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 核心左右雙欄區：左側「聽故事與答題區」＋右側「2x2 神秘拼圖盤」 -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 items-start">
+
+        <!-- 左側互動區 (佔 7 欄) -->
+        <div class="lg:col-span-7 bg-white rounded-3xl p-4 sm:p-6 shadow-lg border-2 border-slate-200 flex flex-col gap-4">
+
+          <!-- 步驟 1：聽短故事卡片 -->
+          <div id="story-box" class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <span class="bg-amber-400 text-amber-950 font-black px-3 py-1 rounded-full text-sm">
+                  步驟 1：仔細聽故事
+                </span>
+              </div>
+              <!-- 語音播放故事按鈕（適合不識字孩童反覆聆聽） -->
+              <button onclick="speakStory()" class="bg-amber-500 hover:bg-amber-400 active:scale-95 text-white font-black px-4 py-2 rounded-2xl shadow flex items-center gap-2 text-base sm:text-lg transition">
+                <span>🔊</span>
+                <span>念故事給我聽</span>
+              </button>
+            </div>
+
+            <!-- 故事文本內容（可由治療師一鍵隱藏，變成純耳朵聽模式） -->
+            <div id="story-text-container" class="bg-white rounded-xl p-3.5 border border-amber-200 text-slate-800 text-lg sm:text-xl font-bold leading-relaxed space-y-1.5">
+              <!-- 由 JS 動態填入 3 句短故事 -->
+            </div>
+
+            <!-- 當故事文字隱藏時顯示的大耳朵提示圖 -->
+            <div id="story-hidden-placeholder" class="hidden bg-white rounded-xl p-5 border-2 border-dashed border-amber-300 text-center">
+              <div class="text-5xl mb-2 animate-float">👂✨</div>
+              <p class="text-lg font-black text-amber-800">打開小耳朵，仔細聽老師念故事喔！</p>
+            </div>
+          </div>
+
+          <!-- 步驟 2：記憶問題與全圖像選項區 -->
+          <div id="question-box" class="flex-1 flex flex-col justify-between gap-4">
+            <div class="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl sm:text-4xl">❓</span>
+                <div>
+                  <span id="question-counter" class="text-xs font-black text-sky-600 uppercase tracking-wider">問題 1 / 1</span>
+                  <h3 id="question-text" class="text-xl sm:text-2xl font-black text-slate-800">
+                    問題載入中...
+                  </h3>
+                </div>
+              </div>
+              <button onclick="speakQuestion()" class="bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-black px-4 py-2.5 rounded-2xl shadow flex items-center gap-2 text-base transition">
+                <span>🗣️</span>
+                <span>聽問題</span>
+              </button>
+            </div>
+
+            <!-- 3 張大圖選項卡（零識字設計：超大插圖 + 喇叭按鈕） -->
+            <div id="options-grid" class="grid grid-cols-3 gap-3 sm:gap-4">
+              <!-- 由 JS 動態生成 3 張大圖卡 -->
+            </div>
+
+            <!-- 即時回饋橫幅 -->
+            <div id="feedback-banner" class="hidden rounded-2xl p-3 text-center font-black text-lg sm:text-xl transition-all">
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 右側神秘拼圖盤 (佔 5 欄) -->
+        <div class="lg:col-span-5 bg-white rounded-3xl p-4 sm:p-6 shadow-lg border-2 border-slate-200 flex flex-col items-center">
+          <div class="flex items-center justify-between w-full mb-3">
+            <h3 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+              <span>🧩</span>
+              <span id="puzzle-board-title">神秘拼圖盤</span>
+            </h3>
+            <span id="puzzle-count-badge" class="bg-slate-100 text-slate-700 font-black px-3 py-1 rounded-full text-sm">
+              已收集 0 / 4 塊
+            </span>
+          </div>
+
+          <!-- 2x2 拼圖容器（底圖為客製化大型 SVG 獎勵插畫，上層蓋 4 塊可解鎖拼圖） -->
+          <div class="relative w-full max-w-[340px] aspect-square rounded-3xl overflow-hidden shadow-inner border-4 border-slate-300 bg-slate-900">
+            
+            <!-- 底層完整獎勵大圖 SVG -->
+            <div id="reward-illustration" class="w-full h-full">
+              <!-- 由 JS 依主題注入精美大型 SVG -->
+            </div>
+
+            <!-- 上層 2x2 拼圖遮罩網格 -->
+            <div class="absolute inset-0 grid grid-cols-2 grid-rows-2">
+              <div id="piece-0" class="puzzle-cover flex flex-col items-center justify-center border border-white/40 text-white font-black shadow-lg">
+                <span class="text-3xl sm:text-4xl mb-1">1️⃣</span>
+                <span class="text-xs sm:text-sm opacity-90">第 1 塊拼圖</span>
+              </div>
+              <div id="piece-1" class="puzzle-cover flex flex-col items-center justify-center border border-white/40 text-white font-black shadow-lg">
+                <span class="text-3xl sm:text-4xl mb-1">2️⃣</span>
+                <span class="text-xs sm:text-sm opacity-90">第 2 塊拼圖</span>
+              </div>
+              <div id="piece-2" class="puzzle-cover flex flex-col items-center justify-center border border-white/40 text-white font-black shadow-lg">
+                <span class="text-3xl sm:text-4xl mb-1">3️⃣</span>
+                <span class="text-xs sm:text-sm opacity-90">第 3 塊拼圖</span>
+              </div>
+              <div id="piece-3" class="puzzle-cover flex flex-col items-center justify-center border border-white/40 text-white font-black shadow-lg">
+                <span class="text-3xl sm:text-4xl mb-1">4️⃣</span>
+                <span class="text-xs sm:text-sm opacity-90">第 4 塊拼圖</span>
+              </div>
+            </div>
+
+          </div>
+
+          <p class="text-center text-sm font-bold text-slate-500 mt-3">
+            每過一關就會打開一塊拼圖喔！
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================
+         畫面 3：過關慶祝與互動獎勵舞台
+         ========================================================= -->
+    <section id="screen-victory" class="hidden flex-1 flex flex-col items-center justify-center py-4 text-center animate-pop">
+      <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-yellow-400 max-w-2xl w-full flex flex-col items-center">
+        <div class="bg-yellow-400 text-yellow-950 font-black px-5 py-1.5 rounded-full text-base sm:text-lg mb-3 shadow">
+          🏆 任務大成功！拼圖全部收集完成！
+        </div>
+        <h2 id="victory-title" class="text-3xl sm:text-4xl font-black text-slate-800 mb-4">
+          太厲害了！你記住了所有線索！
+        </h2>
+
+        <!-- 完整解鎖的互動獎勵大圖（點擊可觸發光線或道具特效） -->
+        <div id="victory-illustration-wrapper" class="relative w-64 h-64 sm:w-80 sm:h-80 rounded-3xl overflow-hidden shadow-xl border-4 border-slate-200 mb-5 bg-slate-900">
+          <div id="victory-illustration" class="w-full h-full"></div>
+          <!-- 特效疊加層（發射光線 / 道具閃光） -->
+          <div id="action-effect-overlay" class="hidden absolute inset-0 pointer-events-none flex items-center justify-center">
+          </div>
+        </div>
+
+        <!-- 互動獎勵按鈕：讓孩子自己按「啟動道具 / 發射彩虹光線」 -->
+        <div class="flex flex-wrap justify-center gap-4 w-full">
+          <button id="btn-trigger-action" onclick="triggerHeroAction()" class="bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 hover:from-amber-300 hover:to-red-400 active:scale-95 text-white font-black text-xl sm:text-2xl px-8 py-4 rounded-2xl shadow-lg flex items-center gap-2 transition transform hover:scale-105">
+            <span id="action-btn-icon">⚡</span>
+            <span id="action-btn-text">發射彩虹光線！</span>
+          </button>
+
+          <button onclick="goHome()" class="bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 font-black text-lg px-6 py-4 rounded-2xl transition">
+            🔄 玩下一個任務
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================
+       彈出視窗：治療師自訂故事題庫編輯器
+       ========================================================= -->
+  <div id="editor-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+        <h3 class="text-xl font-black flex items-center gap-2">
+          <span>✏️</span>
+          <span>治療師自訂故事題庫</span>
+        </h3>
+        <button onclick="closeEditorModal()" class="bg-white/20 hover:bg-white/30 rounded-xl px-3 py-1 font-bold">✕ 關閉</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1">
+        <p class="text-sm text-slate-600 font-bold bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+          💡 提示：你可以直接修改目前主題的 4 關短故事與記憶問題，修改後會自動儲存在瀏覽器中，方便下次治療課繼續使用！
+        </p>
+
+        <!-- 選擇要編輯的主題 -->
+        <div class="flex gap-2">
+          <button id="edit-tab-doraemon" onclick="switchEditorTheme('doraemon')" class="flex-1 py-2.5 rounded-xl font-black bg-sky-500 text-white">
+            🔔 哆啦A夢題庫
+          </button>
+          <button id="edit-tab-ultraman" onclick="switchEditorTheme('ultraman')" class="flex-1 py-2.5 rounded-xl font-black bg-slate-200 text-slate-700">
+            ⚡ 超人力霸王題庫
+          </button>
+        </div>
+
+        <!-- 4 關編輯表單容器 -->
+        <div id="editor-stages-container" class="space-y-4">
+          <!-- 由 JS 動態產生 -->
+        </div>
+      </div>
+
+      <div class="bg-slate-100 px-6 py-4 flex flex-wrap items-center justify-between gap-3 border-t">
+        <button onclick="resetDefaultStories()" class="text-rose-600 hover:text-rose-700 font-bold text-sm underline">
+          恢復預設故事題庫
+        </button>
+        <div class="flex gap-2">
+          <button onclick="closeEditorModal()" class="px-5 py-2.5 rounded-xl font-bold bg-slate-300 text-slate-700">取消</button>
+          <button onclick="saveEditedStories()" class="px-6 py-2.5 rounded-xl font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow">
+            💾 儲存並套用
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       JavaScript 核心邏輯（音效合成、語音朗讀、題庫與互動狀態）
+       ========================================================= -->
+  <script>
+    // ---------------------------------------------------------
+    // 1. Web Audio API 音效引擎（無需外部音檔，離線也能發出清脆音效）
+    // ---------------------------------------------------------
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, type, duration, startTime = 0, vol = 0.25) {
+      if (!soundEnabled) return;
+      initAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime + startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(audioCtx.currentTime + startTime);
+      osc.stop(audioCtx.currentTime + startTime + duration);
+    }
+
+    // 各種互動音效
+    const SFX = {
+      click: () => playTone(520, 'sine', 0.1, 0, 0.15),
+      correct: () => {
+        playTone(523.25, 'triangle', 0.15, 0, 0.25);     // C5
+        playTone(659.25, 'triangle', 0.15, 0.12, 0.25);  // E5
+        playTone(783.99, 'triangle', 0.3, 0.24, 0.3);    // G5
+      },
+      wrong: () => {
+        playTone(260, 'sine', 0.2, 0, 0.2);
+        playTone(210, 'sine', 0.25, 0.15, 0.2);
+      },
+      unlock: () => {
+        playTone(587.33, 'sine', 0.12, 0, 0.25);
+        playTone(880, 'sine', 0.35, 0.1, 0.3);
+      },
+      victory: () => {
+        const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+        const times = [0, 0.14, 0.28, 0.42, 0.6, 0.75];
+        notes.forEach((n, i) => playTone(n, 'triangle', 0.25, times[i], 0.3));
+      },
+      beam: () => {
+        if (!soundEnabled) return;
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.6);
+      }
+    };
+
+    // ---------------------------------------------------------
+    // 2. 繁體中文語音合成 (Web Speech API - zh-TW)
+    // ---------------------------------------------------------
+    function speakText(text, rate = 0.9) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-TW';
+      utterance.rate = rate; // 稍慢一點點，讓六歲孩童聽得更清楚
+      utterance.pitch = 1.05;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // ---------------------------------------------------------
+    // 3. 預設故事題庫（每主題 4 關，每關 3 句短故事，含明確人時地物細節）
+    // ---------------------------------------------------------
+    const DEFAULT_MISSIONS = {
+      doraemon: {
+        id: 'doraemon',
+        title: '哆啦A夢：神秘道具拼圖大作戰',
+        badge: '🔔',
+        bannerClass: 'bg-gradient-to-r from-sky-500 to-blue-600',
+        pieceClass: 'bg-gradient-to-br from-sky-400 to-blue-600',
+        actionIcon: '🚁',
+        actionText: '啟動超級時光火箭！',
+        stages: [
+          {
+            // 關卡 1：公園找竹蜻蜓
+            sentences: [
+              '星期天早上，大雄和哆啦A夢一起去公園玩。',
+              '大雄不小心把黃色的竹蜻蜓掉在溜滑梯下面。',
+              '後來是一隻小花貓幫忙把竹蜻蜓叼回來的。'
+            ],
+            questions: [
+              {
+                q: '剛剛是「誰」幫忙把竹蜻蜓叼回來的？',
+                options: [
+                  { label: '小花貓', emoji: '🐱', isCorrect: true },
+                  { label: '小黃狗', emoji: '🐶', isCorrect: false },
+                  { label: '小白兔', emoji: '🐰', isCorrect: false }
+                ]
+              },
+              {
+                q: '竹蜻蜓掉在「哪裡」的下面？',
+                options: [
+                  { label: '溜滑梯', emoji: '🛝', isCorrect: true },
+                  { label: '盪鞦韆', emoji: '🎠', isCorrect: false },
+                  { label: '大樹下', emoji: '🌳', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 2：廚房銅鑼燒失蹤案
+            sentences: [
+              '下午點心時間，媽媽在廚房盤子上放了三個銅鑼燒。',
+              '哆啦A夢去客廳拿飲料，回來發現銅鑼燒不見了！',
+              '原來是妹妹哆啦美偷偷拿去分給小老鼠吃了。'
+            ],
+            questions: [
+              {
+                q: '媽媽在盤子上放了「幾個」銅鑼燒？',
+                options: [
+                  { label: '三個', emoji: '3️⃣', isCorrect: true },
+                  { label: '一個', emoji: '1️⃣', isCorrect: false },
+                  { label: '五個', emoji: '5️⃣', isCorrect: false }
+                ]
+              },
+              {
+                q: '哆啦A夢剛才去「哪裡」拿飲料？',
+                options: [
+                  { label: '客廳', emoji: '🛋️', isCorrect: true },
+                  { label: '浴室', emoji: '🛁', isCorrect: false },
+                  { label: '陽台', emoji: '🪴', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 3：學校忘記帶作業
+            sentences: [
+              '今天早上，大雄背著紅色書包跑去學校上課。',
+              '打開書包才發現，他把自然課本忘在房間書桌上了。',
+              '哆啦A夢趕緊拿出任意門，幫大雄回家拿課本。'
+            ],
+            questions: [
+              {
+                q: '大雄把自然課本忘在「哪裡」？',
+                options: [
+                  { label: '書桌上', emoji: '🪑', isCorrect: true },
+                  { label: '床底下', emoji: '🛏️', isCorrect: false },
+                  { label: '冰箱裡', emoji: '🧊', isCorrect: false }
+                ]
+              },
+              {
+                q: '哆啦A夢拿出「什麼道具」幫大雄回家？',
+                options: [
+                  { label: '任意門', emoji: '🚪', isCorrect: true },
+                  { label: '縮小燈', emoji: '🔦', isCorrect: false },
+                  { label: '記憶吐司', emoji: '🍞', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 4：後山尋寶記
+            sentences: [
+              '傍晚太陽下山前，胖虎和小夫在後山大樹下挖寶藏。',
+              '他們用鐵鏟子挖出了一個閃閃發光的藍色寶盒。',
+              '打開一看，裡面竟然裝著一頂超酷的太空人頭盔！'
+            ],
+            questions: [
+              {
+                q: '他們在「什麼時候」去後山挖寶藏？',
+                options: [
+                  { label: '傍晚太陽下山前', emoji: '🌇', isCorrect: true },
+                  { label: '半夜睡覺時', emoji: '🌙', isCorrect: false },
+                  { label: '大清早起床時', emoji: '🌅', isCorrect: false }
+                ]
+              },
+              {
+                q: '藍色寶盒裡面裝著「什麼東西」？',
+                options: [
+                  { label: '太空人頭盔', emoji: '👩‍🚀', isCorrect: true },
+                  { label: '恐龍蛋', emoji: '🥚', isCorrect: false },
+                  { label: '大西瓜', emoji: '🍉', isCorrect: false }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      ultraman: {
+        id: 'ultraman',
+        title: '超人力霸王：光之能量拼圖任務',
+        badge: '⚡',
+        bannerClass: 'bg-gradient-to-r from-red-600 via-rose-600 to-slate-800',
+        pieceClass: 'bg-gradient-to-br from-red-500 to-slate-800',
+        actionIcon: '🌈',
+        actionText: '發射斯派修姆彩虹光線！',
+        stages: [
+          {
+            // 關卡 1：城市危機
+            sentences: [
+              '星期六中午，一隻愛吃冰淇淋的小怪獸跑進城市裡。',
+              '牠把大樓屋頂上的超大草莓冰淇淋一口吃掉了。',
+              '超人力霸王飛過來，送給小怪獸兩根香蕉當點心。'
+            ],
+            questions: [
+              {
+                q: '小怪獸在大樓屋頂吃掉了「什麼口味」的冰淇淋？',
+                options: [
+                  { label: '草莓冰淇淋', emoji: '🍓', isCorrect: true },
+                  { label: '巧克力冰淇淋', emoji: '🍫', isCorrect: false },
+                  { label: '葡萄冰淇淋', emoji: '🍇', isCorrect: false }
+                ]
+              },
+              {
+                q: '超人力霸王送給小怪獸「什麼點心」？',
+                options: [
+                  { label: '香蕉', emoji: '🍌', isCorrect: true },
+                  { label: '漢堡', emoji: '🍔', isCorrect: false },
+                  { label: '甜甜圈', emoji: '🍩', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 2：海邊救援
+            sentences: [
+              '下午在海邊，一隻大螃蟹怪獸把漁夫的藍色小船夾住了。',
+              '超人力霸王潛入海底，用光之護盾輕輕推開大螃蟹。',
+              '漁夫為了謝謝他，送給他一顆亮晶晶的珍珠。'
+            ],
+            questions: [
+              {
+                q: '大螃蟹怪獸在「哪裡」夾住了小船？',
+                options: [
+                  { label: '海邊', emoji: '🏖️', isCorrect: true },
+                  { label: '高山上', emoji: '⛰️', isCorrect: false },
+                  { label: '沙漠裡', emoji: '🏜️', isCorrect: false }
+                ]
+              },
+              {
+                q: '漁夫送給超人力霸王「什麼禮物」？',
+                options: [
+                  { label: '亮晶晶的珍珠', emoji: '🔮', isCorrect: true },
+                  { label: '黃金皇冠', emoji: '👑', isCorrect: false },
+                  { label: '望遠鏡', emoji: '🔭', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 3：太空站巡邏
+            sentences: [
+              '今天晚上，超人力霸王飛到月球旁邊的太空站巡邏。',
+              '他發現有一顆調皮的流星撞壞了太空站的太陽能板。',
+              '超人力霸王用修理工具箱，只花五分鐘就修好了！'
+            ],
+            questions: [
+              {
+                q: '超人力霸王在「什麼時候」飛去太空站巡邏？',
+                options: [
+                  { label: '晚上', emoji: '🌙', isCorrect: true },
+                  { label: '早上', emoji: '☀️', isCorrect: false },
+                  { label: '中午', emoji: '🕛', isCorrect: false }
+                ]
+              },
+              {
+                q: '是「什麼東西」撞壞了太空站的太陽能板？',
+                options: [
+                  { label: '流星', emoji: '☄️', isCorrect: true },
+                  { label: '飛碟', emoji: '🛸', isCorrect: false },
+                  { label: '火箭', emoji: '🚀', isCorrect: false }
+                ]
+              }
+            ]
+          },
+          {
+            // 關卡 4：森林迷路的小恐龍
+            sentences: [
+              '下雨天的早上，一隻綠色的小恐龍在森林裡迷路了。',
+              '牠躲在一朵大蘑菇下面哭得好傷心。',
+              '超人力霸王撐著黃色大雨傘，把小恐龍安全送回家。'
+            ],
+            questions: [
+              {
+                q: '迷路的小恐龍躲在「什麼東西」下面？',
+                options: [
+                  { label: '大蘑菇', emoji: '🍄', isCorrect: true },
+                  { label: '大石頭', emoji: '🪨', isCorrect: false },
+                  { label: '小木屋', emoji: '🛖', isCorrect: false }
+                ]
+              },
+              {
+                q: '超人力霸王撐著「什麼顏色」的大雨傘？',
+                options: [
+                  { label: '黃色雨傘', emoji: '☂️', isCorrect: true },
+                  { label: '黑色雨傘', emoji: '🌂', isCorrect: false },
+                  { label: '綠色雨傘', emoji: '🥬', isCorrect: false }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    // 從 localStorage 讀取自訂題庫，若無則使用預設
+    let missionsData = JSON.parse(localStorage.getItem('slp_memory_missions_v1')) || JSON.parse(JSON.stringify(DEFAULT_MISSIONS));
+
+    // ---------------------------------------------------------
+    // 4. 遊戲狀態管理
+    // ---------------------------------------------------------
+    let currentTheme = 'doraemon';
+    let currentStageIdx = 0;
+    let currentQuestionIdx = 0;
+    let showStoryText = true;
+    let showAnchors = true;
+    let isTransitioning = false;
+
+    // ---------------------------------------------------------
+    // 5. 客製化大型獎勵插畫 SVG 生成器（拼圖解鎖底圖）
+    // ---------------------------------------------------------
+    function getRewardSVG(theme) {
+      if (theme === 'doraemon') {
+        // 哆啦A夢主題獎勵圖：超級時光火箭＋百寶道具大集合
+        return `
+          <svg viewBox="0 0 400 400" class="w-full h-full">
+            <defs>
+              <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0284c7"/>
+                <stop offset="100%" stop-color="#38bdf8"/>
+              </linearGradient>
+            </defs>
+            <rect width="400" height="400" fill="url(#skyGrad)"/>
+            <!-- 星星與雲朵 -->
+            <circle cx="60" cy="60" r="6" fill="#fef08a"/>
+            <circle cx="340" cy="80" r="8" fill="#fef08a"/>
+            <circle cx="310" cy="290" r="6" fill="#fef08a"/>
+            <ellipse cx="80" cy="320" rx="55" ry="22" fill="#ffffff" opacity="0.85"/>
+            <ellipse cx="320" cy="160" rx="50" ry="20" fill="#ffffff" opacity="0.85"/>
+            
+            <!-- 超級未來時光火箭主體 -->
+            <g transform="translate(200, 205)">
+              <!-- 噴射火焰 -->
+              <path d="M -28 85 Q 0 155 28 85 Z" fill="#f97316"/>
+              <path d="M -16 85 Q 0 130 16 85 Z" fill="#facc15"/>
+              <!-- 左右尾翼 -->
+              <path d="M -45 40 L -85 95 L -35 80 Z" fill="#ef4444" stroke="#ffffff" stroke-width="3"/>
+              <path d="M 45 40 L 85 95 L 35 80 Z" fill="#ef4444" stroke="#ffffff" stroke-width="3"/>
+              <!-- 火箭機身 -->
+              <path d="M 0 -135 C 55 -70, 55 35, 42 85 L -42 85 C -55 35, -55 -70, 0 -135 Z" fill="#ffffff" stroke="#0369a1" stroke-width="4"/>
+              <!-- 紅色鼻錐 -->
+              <path d="M 0 -135 C 24 -105, 34 -85, 38 -65 L -38 -65 C -34 -85, -24 -105, 0 -135 Z" fill="#ef4444"/>
+              <!-- 觀景窗裡的機器貓駕駛員 -->
+              <circle cx="0" cy="-15" r="34" fill="#0ea5e9" stroke="#facc15" stroke-width="6"/>
+              <circle cx="0" cy="-10" r="24" fill="#ffffff"/>
+              <circle cx="0" cy="-18" r="6" fill="#ef4444"/>
+              <path d="M -14 -8 Q 0 8 14 -8" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>
+              <!-- 黃金鈴鐺徽章 -->
+              <circle cx="0" cy="45" r="16" fill="#facc15" stroke="#b45309" stroke-width="3"/>
+              <circle cx="0" cy="49" r="4" fill="#78350f"/>
+            </g>
+          </svg>
+        `;
+      } else {
+        // 超人力霸王主題獎勵圖：光之巨人發射彩虹光線對抗可愛怪獸
+        return `
+          <svg viewBox="0 0 400 400" class="w-full h-full">
+            <defs>
+              <linearGradient id="spaceGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#1e3a8a"/>
+              </linearGradient>
+            </defs>
+            <rect width="400" height="400" fill="url(#spaceGrad)"/>
+            <!-- 閃亮星星 -->
+            <circle cx="50" cy="50" r="4" fill="#ffffff"/>
+            <circle cx="180" cy="40" r="5" fill="#fef08a"/>
+            <circle cx="350" cy="60" r="4" fill="#ffffff"/>
+            <circle cx="240" cy="90" r="3" fill="#38bdf8"/>
+            <!-- 地面 -->
+            <rect x="0" y="330" width="400" height="70" fill="#334155"/>
+
+            <!-- 左側：超人力霸王英雄 -->
+            <g transform="translate(95, 215)">
+              <!-- 身體 -->
+              <rect x="-32" y="15" width="64" height="95" rx="20" fill="#ef4444" stroke="#ffffff" stroke-width="3"/>
+              <path d="M -22 25 L 0 65 L 22 25" fill="#e2e8f0"/>
+              <!-- 胸前能量計時器 -->
+              <circle cx="0" cy="45" r="10" fill="#38bdf8" stroke="#ffffff" stroke-width="2.5"/>
+              <!-- 頭部 -->
+              <ellipse cx="0" cy="-22" rx="30" ry="36" fill="#e2e8f0" stroke="#ffffff" stroke-width="3"/>
+              <path d="M -5 -65 L 5 -65 L 3 -38 L -3 -38 Z" fill="#ffffff"/>
+              <path d="M -24 -30 Q 0 -42 24 -30 L 26 -14 Q 0 -24 -26 -14 Z" fill="#ef4444"/>
+              <ellipse cx="-12" cy="-20" rx="8" ry="5" transform="rotate(-15 -12 -20)" fill="#fef08a"/>
+              <ellipse cx="12" cy="-20" rx="8" ry="5" transform="rotate(15 12 -20)" fill="#fef08a"/>
+              <!-- 十字光線手勢 -->
+              <rect x="10" y="25" width="45" height="16" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+              <rect x="26" y="5" width="16" height="50" rx="8" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+            </g>
+
+            <!-- 中間：斯派修姆光線 -->
+            <polygon points="145,235 280,195 280,275" fill="#38bdf8" opacity="0.85"/>
+            <polygon points="145,242 280,215 280,255" fill="#ffffff"/>
+
+            <!-- 右側：可愛小怪獸舉白旗投降 -->
+            <g transform="translate(310, 235)">
+              <ellipse cx="0" cy="35" rx="42" ry="55" fill="#10b981" stroke="#065f46" stroke-width="3"/>
+              <!-- 頭角 -->
+              <polygon points="-18,-15 -28,-42 -6,-20" fill="#facc15"/>
+              <polygon points="18,-15 28,-42 6,-20" fill="#facc15"/>
+              <!-- 暈頭轉向的眼睛 -->
+              <text x="-22" y="15" font-size="18" fill="#ffffff" font-weight="bold">＠</text>
+              <text x="6" y="15" font-size="18" fill="#ffffff" font-weight="bold">＠</text>
+              <!-- 張大嘴驚訝 -->
+              <ellipse cx="0" cy="42" rx="14" ry="16" fill="#064e3b"/>
+            </g>
+          </svg>
+        `;
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 6. 導航與控制功能
+    // ---------------------------------------------------------
+    function goHome() {
+      SFX.click();
+      window.speechSynthesis.cancel();
+      document.getElementById('screen-home').classList.remove('hidden');
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-victory').classList.add('hidden');
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('sound-icon').textContent = soundEnabled ? '🔊' : '🔇';
+      if (soundEnabled) SFX.click();
+    }
+
+    function toggleStoryText() {
+      SFX.click();
+      showStoryText = !showStoryText;
+      const btn = document.getElementById('toggle-text-btn');
+      const label = document.getElementById('toggle-text-label');
+      const icon = document.getElementById('toggle-text-icon');
+
+      if (showStoryText) {
+        btn.className = 'bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow';
+        icon.textContent = '👁️';
+        label.textContent = '故事文字：顯示';
+      } else {
+        btn.className = 'bg-slate-600 hover:bg-slate-500 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow';
+        icon.textContent = '🙈';
+        label.textContent = '故事文字：隱藏';
+      }
+      updateStoryVisibility();
+    }
+
+    function updateStoryVisibility() {
+      const textBox = document.getElementById('story-text-container');
+      const hiddenBox = document.getElementById('story-hidden-placeholder');
+      if (showStoryText) {
+        textBox.classList.remove('hidden');
+        hiddenBox.classList.add('hidden');
+      } else {
+        textBox.classList.add('hidden');
+        hiddenBox.classList.remove('hidden');
+      }
+    }
+
+    function toggleAnchorsBar() {
+      SFX.click();
+      showAnchors = !showAnchors;
+      const bar = document.getElementById('visual-anchors-bar');
+      const label = document.getElementById('toggle-anchors-label');
+      if (showAnchors) {
+        bar.classList.remove('hidden');
+        label.textContent = '視覺提示燈：開啟';
+      } else {
+        bar.classList.add('hidden');
+        label.textContent = '視覺提示燈：關閉';
+      }
+    }
+
+    function toggleSingleAnchor(el) {
+      SFX.click();
+      el.classList.toggle('anchor-active');
+    }
+
+    function clearAnchorHighlights() {
+      SFX.click();
+      document.querySelectorAll('.anchor-card').forEach(el => el.classList.remove('anchor-active'));
+    }
+
+    // ---------------------------------------------------------
+    // 7. 遊戲流程核心邏輯
+    // ---------------------------------------------------------
+    function startMission(themeId) {
+      SFX.click();
+      currentTheme = themeId;
+      currentStageIdx = 0;
+      currentQuestionIdx = 0;
+      isTransitioning = false;
+
+      const mission = missionsData[currentTheme];
+
+      // 切換畫面
+      document.getElementById('screen-home').classList.add('hidden');
+      document.getElementById('screen-victory').classList.add('hidden');
+      document.getElementById('screen-game').classList.remove('hidden');
+
+      // 套用主題色彩
+      const banner = document.getElementById('theme-banner');
+      banner.className = `rounded-3xl p-3 sm:p-4 text-white shadow-lg flex flex-wrap items-center justify-between gap-3 ${mission.bannerClass}`;
+      document.getElementById('mission-badge').textContent = mission.badge;
+      document.getElementById('mission-title').textContent = mission.title;
+
+      // 重設 4 塊拼圖遮罩
+      document.getElementById('reward-illustration').innerHTML = getRewardSVG(currentTheme);
+      for (let i = 0; i < 4; i++) {
+        const piece = document.getElementById(`piece-${i}`);
+        piece.className = `puzzle-cover flex flex-col items-center justify-center border border-white/40 text-white font-black shadow-lg ${mission.pieceClass}`;
+      }
+
+      renderStage();
+    }
+
+    function renderStage() {
+      const mission = missionsData[currentTheme];
+      const stage = mission.stages[currentStageIdx];
+      currentQuestionIdx = 0;
+
+      // 更新頂部關卡文字與星星
+      document.getElementById('stage-subtitle').textContent = `第 ${currentStageIdx + 1} 關 / 共 4 關`;
+      document.getElementById('puzzle-count-badge').textContent = `已收集 ${currentStageIdx} / 4 塊`;
+
+      const starsHtml = [0, 1, 2, 3].map(i => i < currentStageIdx ? '⭐' : '⚪').join('');
+      document.getElementById('progress-stars').innerHTML = starsHtml;
+
+      // 填入 3 句短故事
+      const storyContainer = document.getElementById('story-text-container');
+      storyContainer.innerHTML = stage.sentences.map((s, idx) => `
+        <p class="flex items-start gap-2">
+          <span class="bg-amber-200 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full mt-1">${idx + 1}</span>
+          <span>${s}</span>
+        </p>
+      `).join('');
+
+      updateStoryVisibility();
+      clearAnchorHighlights();
+      renderQuestion();
+
+      // 自動朗讀本關短故事
+      setTimeout(() => speakStory(), 400);
+    }
+
+    function speakStory() {
+      const stage = missionsData[currentTheme].stages[currentStageIdx];
+      speakText(stage.sentences.join(' '), 0.88);
+    }
+
+    function speakQuestion() {
+      const questionObj = missionsData[currentTheme].stages[currentStageIdx].questions[currentQuestionIdx];
+      speakText(questionObj.q, 0.92);
+    }
+
+    function renderQuestion() {
+      const stage = missionsData[currentTheme].stages[currentStageIdx];
+      const questionObj = stage.questions[currentQuestionIdx];
+
+      document.getElementById('question-counter').textContent = `問題 ${currentQuestionIdx + 1} / ${stage.questions.length}`;
+      document.getElementById('question-text').textContent = questionObj.q;
+
+      // 隱藏上一題的回饋橫幅
+      const fb = document.getElementById('feedback-banner');
+      fb.classList.add('hidden');
+
+      // 隨機打亂 3 個選項順序，避免每次都在同一個位置
+      const shuffledOptions = [...questionObj.options].sort(() => Math.random() - 0.5);
+
+      const optionsGrid = document.getElementById('options-grid');
+      optionsGrid.innerHTML = shuffledOptions.map((opt, idx) => `
+        <div class="relative flex flex-col bg-slate-50 hover:bg-sky-50 border-4 border-slate-200 hover:border-sky-400 rounded-3xl p-3 sm:p-4 shadow-md transition-all transform hover:-translate-y-1">
+          <!-- 右上角獨立小喇叭：不識字孩童可先點這裡「偷聽選項是什麼」再作答 -->
+          <button type="button" onclick="event.stopPropagation(); speakText('${opt.label}', 0.95)" title="念出選項" class="self-end bg-white hover:bg-amber-100 border-2 border-slate-200 text-slate-700 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition">
+            🔊
+          </button>
+
+          <!-- 大圖點擊答題區 -->
+          <button type="button" onclick="handleAnswer(${opt.isCorrect}, this)" class="flex-1 flex flex-col items-center justify-center py-2 sm:py-3 focus:outline-none active:scale-95">
+            <span class="text-5xl sm:text-7xl mb-2 sm:mb-3 drop-shadow-sm">${opt.emoji}</span>
+            <span class="text-base sm:text-xl font-black text-slate-800 text-center leading-tight">${opt.label}</span>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function handleAnswer(isCorrect, btnEl) {
+      if (isTransitioning) return;
+      const cardEl = btnEl.parentElement;
+      const fb = document.getElementById('feedback-banner');
+
+      if (isCorrect) {
+        isTransitioning = true;
+        SFX.correct();
+        cardEl.classList.remove('border-slate-200', 'bg-slate-50');
+        cardEl.classList.add('border-emerald-500', 'bg-emerald-100', 'animate-pop');
+
+        fb.className = 'rounded-2xl p-3 text-center font-black text-lg sm:text-xl bg-emerald-500 text-white shadow animate-pop';
+        fb.textContent = '🎉 答對了！你的耳朵真靈光！';
+        fb.classList.remove('hidden');
+        speakText('答對了！你好棒！', 1.0);
+
+        const stage = missionsData[currentTheme].stages[currentStageIdx];
+
+        setTimeout(() => {
+          // 檢查本關是否還有第 2 題
+          if (currentQuestionIdx + 1 < stage.questions.length) {
+            currentQuestionIdx++;
+            isTransitioning = false;
+            renderQuestion();
+            speakQuestion();
+          } else {
+            // 本關完成，解鎖對應的拼圖塊！
+            unlockPuzzlePiece(currentStageIdx);
+          }
+        }, 1200);
+
+      } else {
+        // 答錯給予溫和鼓勵，不扣分、可重試
+        SFX.wrong();
+        cardEl.classList.remove('border-slate-200');
+        cardEl.classList.add('border-rose-400', 'bg-rose-50', 'animate-shake');
+        setTimeout(() => cardEl.classList.remove('animate-shake'), 450);
+
+        fb.className = 'rounded-2xl p-3 text-center font-black text-base sm:text-lg bg-amber-100 text-amber-900 border-2 border-amber-300';
+        fb.textContent = '🤔 差一點點！可以再按一次「念故事給我聽」喔！';
+        fb.classList.remove('hidden');
+        speakText('差一點點，再想一想喔！', 0.95);
+      }
+    }
+
+    function unlockPuzzlePiece(pieceIndex) {
+      SFX.unlock();
+      const piece = document.getElementById(`piece-${pieceIndex}`);
+      piece.classList.add('puzzle-unlocked');
+
+      const unlockedCount = pieceIndex + 1;
+      document.getElementById('puzzle-count-badge').textContent = `已收集 ${unlockedCount} / 4 塊`;
+      const starsHtml = [0, 1, 2, 3].map(i => i < unlockedCount ? '⭐' : '⚪').join('');
+      document.getElementById('progress-stars').innerHTML = starsHtml;
+
+      setTimeout(() => {
+        if (currentStageIdx + 1 < 4) {
+          currentStageIdx++;
+          isTransitioning = false;
+          renderStage();
+        } else {
+          // 4 關全部通關，進入勝利畫面！
+          showVictoryScreen();
+        }
+      }, 1300);
+    }
+
+    // ---------------------------------------------------------
+    // 8. 過關慶祝與互動獎勵動作
+    // ---------------------------------------------------------
+    function showVictoryScreen() {
+      SFX.victory();
+      const mission = missionsData[currentTheme];
+
+      document.getElementById('screen-game').classList.add('hidden');
+      document.getElementById('screen-victory').classList.remove('hidden');
+
+      document.getElementById('victory-illustration').innerHTML = getRewardSVG(currentTheme);
+      document.getElementById('action-btn-icon').textContent = mission.actionIcon;
+      document.getElementById('action-btn-text').textContent = mission.actionText;
+      document.getElementById('action-effect-overlay').classList.add('hidden');
+
+      launchConfetti();
+      speakText('太厲害了！四塊拼圖全部收集完成了！快按下面的按鈕啟動吧！', 0.95);
+    }
+
+    function triggerHeroAction() {
+      SFX.beam();
+      launchConfetti();
+      const overlay = document.getElementById('action-effect-overlay');
+      overlay.classList.remove('hidden');
+
+      if (currentTheme === 'doraemon') {
+        overlay.innerHTML = `
+          <div class="w-full h-full bg-yellow-300/30 flex flex-col items-center justify-center animate-pop">
+            <span class="text-7xl drop-shadow-lg">🚀✨💫</span>
+            <span class="bg-blue-600 text-white font-black px-4 py-1 rounded-full text-lg mt-2 shadow-lg">時光火箭起飛囉！</span>
+          </div>
+        `;
+        speakText('咻——時光火箭出發囉！', 1.05);
+      } else {
+        overlay.innerHTML = `
+          <div class="w-full h-full bg-cyan-400/30 flex flex-col items-center justify-center animate-beam">
+            <span class="text-7xl drop-shadow-lg">⚡🌈💥</span>
+            <span class="bg-red-600 text-white font-black px-4 py-1 rounded-full text-lg mt-2 shadow-lg">彩虹光線發射成功！</span>
+          </div>
+        `;
+        speakText('發射斯派修姆彩虹光線！', 1.05);
+      }
+    }
+
+    function launchConfetti() {
+      const colors = ['#facc15', '#38bdf8', '#f43f5e', '#4ade80', '#a855f7'];
+      for (let i = 0; i < 45; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDuration = (Math.random() * 1.5 + 1.5) + 's';
+        piece.style.animationDelay = (Math.random() * 0.4) + 's';
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 3200);
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 9. 治療師題庫編輯器邏輯
+    // ---------------------------------------------------------
+    let editingTheme = 'doraemon';
+
+    function openEditorModal() {
+      SFX.click();
+      editingTheme = currentTheme;
+      document.getElementById('editor-modal').classList.remove('hidden');
+      renderEditorForm();
+    }
+
+    function closeEditorModal() {
+      SFX.click();
+      document.getElementById('editor-modal').classList.add('hidden');
+    }
+
+    function switchEditorTheme(theme) {
+      editingTheme = theme;
+      document.getElementById('edit-tab-doraemon').className = theme === 'doraemon'
+        ? 'flex-1 py-2.5 rounded-xl font-black bg-sky-500 text-white'
+        : 'flex-1 py-2.5 rounded-xl font-black bg-slate-200 text-slate-700';
+      document.getElementById('edit-tab-ultraman').className = theme === 'ultraman'
+        ? 'flex-1 py-2.5 rounded-xl font-black bg-red-600 text-white'
+        : 'flex-1 py-2.5 rounded-xl font-black bg-slate-200 text-slate-700';
+      renderEditorForm();
+    }
+
+    function renderEditorForm() {
+      const container = document.getElementById('editor-stages-container');
+      const stages = missionsData[editingTheme].stages;
+
+      container.innerHTML = stages.map((st, sIdx) => `
+        <div class="border-2 border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-3">
+          <div class="font-black text-indigo-700 text-base">🧩 第 ${sIdx + 1} 關設定</div>
+          
+          <!-- 3 句短故事輸入 -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500">故事內容（建議 3 句短句，包含人、時、地、物）：</label>
+            ${st.sentences.map((sent, lineIdx) => `
+              <input type="text" data-stage="${sIdx}" data-line="${lineIdx}" value="${sent}" class="edit-sentence w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm font-bold bg-white" />
+            `).join('')}
+          </div>
+
+          <!-- 記憶性問題 1 設定 -->
+          <div class="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+            <label class="text-xs font-bold text-sky-600">記憶性問題 1：</label>
+            <input type="text" data-stage="${sIdx}" data-q="0" value="${st.questions[0].q}" class="edit-q-text w-full px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-bold" />
+            <div class="grid grid-cols-3 gap-2">
+              ${st.questions[0].options.map((opt, oIdx) => `
+                <div class="p-2 rounded-lg border ${opt.isCorrect ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'}">
+                  <div class="text-[11px] font-black mb-1 ${opt.isCorrect ? 'text-emerald-700' : 'text-slate-400'}">
+                    ${opt.isCorrect ? '✅ 正確答案' : '❌ 干擾選項'}
+                  </div>
+                  <input type="text" data-stage="${sIdx}" data-q="0" data-opt="${oIdx}" data-field="emoji" value="${opt.emoji}" class="edit-opt w-full text-center text-lg border rounded mb-1" />
+                  <input type="text" data-stage="${sIdx}" data-q="0" data-opt="${oIdx}" data-field="label" value="${opt.label}" class="edit-opt w-full text-xs font-bold px-1.5 py-1 border rounded" />
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function saveEditedStories() {
+      const stages = missionsData[editingTheme].stages;
+
+      document.querySelectorAll('.edit-sentence').forEach(inp => {
+        const s = inp.dataset.stage;
+        const l = inp.dataset.line;
+        stages[s].sentences[l] = inp.value.trim();
+      });
+
+      document.querySelectorAll('.edit-q-text').forEach(inp => {
+        const s = inp.dataset.stage;
+        const q = inp.dataset.q;
+        stages[s].questions[q].q = inp.value.trim();
+      });
+
+      document.querySelectorAll('.edit-opt').forEach(inp => {
+        const s = inp.dataset.stage;
+        const q = inp.dataset.q;
+        const o = inp.dataset.opt;
+        const f = inp.dataset.field;
+        stages[s].questions[q].options[o][f] = inp.value.trim();
+      });
+
+      localStorage.setItem('slp_memory_missions_v1', JSON.stringify(missionsData));
+      closeEditorModal();
+      if (!document.getElementById('screen-game').classList.contains('hidden')) {
+        renderStage();
+      }
+    }
+
+    function resetDefaultStories() {
+      missionsData = JSON.parse(JSON.stringify(DEFAULT_MISSIONS));
+      localStorage.removeItem('slp_memory_missions_v1');
+      renderEditorForm();
+    }
+  </script>
+</body>
+</html>
